@@ -44,25 +44,6 @@ Open the `Maps` folder to start creating roads. You can click `generateEverythin
 - **Buildings** - click `addBuildings` to fill the city with buildings. If you can't see them, the chosen style might not display buildings, or you might not be zoomed in enough. The `Default` style, and `GoogleNoZoom` styles both show buildings at all zoom levels. You can change the minimum building size, and the sidewalk size with `shrinkSpacing`.
 - **Animation** - Generation will be faster if you untick 'Animate', but note that this will swamp the UI thread so you won't be able to pan, zoom, or retry until generation has completed. Animation speed gives you a tradeoff between FPS and generation time.
 
-### New Controls
-
-- **城市边界**: 在"城市边界"面板中控制城市生成的区域范围。
-  - `启用边界`: 勾选后，道路、水系和建筑将只在自定义多边形区域内生成。
-  - `编辑模式`: 勾选后可以编辑边界多边形：
-    - **添加顶点**: 单击边界线附近添加新顶点。
-    - **删除顶点**: 单击现有顶点（红点）删除它（至少保留3个顶点）。
-    - **拖拽顶点**: 拖动红点调整多边形形状。
-  - `重置边界`: 将边界重置为当前视图的默认矩形。
-  - 边界在启用时显示为蓝色虚线，编辑模式下显示为红色实线并带有可拖拽的红点。
-- **建筑密度**: In the `建筑` folder, adjust `建筑密度` (0–1) to control how many building lots are kept after subdivision. Lower values create sparser development.
-
-**推荐工作流**:
-1. 先在合适的缩放级别和位置生成一次城市，观察布局。
-2. 打开"城市边界"文件夹，启用边界，进入编辑模式。
-3. 通过点击和拖拽调整多边形，定义你想要的城市形状。
-4. 退出编辑模式，重新生成水系、道路和建筑，它们将只出现在边界内。
-5. 使用建筑密度滑块微调建筑物的稀疏程度。
-
 ## Recommended Workflow
 
 Here are the steps I usually take when I use the tool:

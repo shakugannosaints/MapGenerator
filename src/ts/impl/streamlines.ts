@@ -1,5 +1,6 @@
 import * as log from 'loglevel';
 import * as simplify from 'simplify-js';
+import * as SimplexNoise from 'simplex-noise';
 import Vector from '../vector';
 import GridStorage from './grid_storage';
 import FieldIntegrator from './integrator';
@@ -28,6 +29,28 @@ export interface StreamlineParams {
     seedTries: number;  // Max failed seeds
     simplifyTolerance: number;
     collideEarly: number;  // Chance of early collision 0-1
+    
+    // 真实性增强参数
+    enablePathPerturbation: boolean;  // 启用路径扰动
+    perturbationStrength: number;  // 扰动强度 (0-1)
+    perturbationFrequency: number;  // 扰动频率 (噪声规模)
+    perturbationOctaves: number;  // 噪声叠加层数
+    
+    enableTerrainInfluence: boolean;  // 启用地形影响
+    terrainNoiseScale: number;  // 地形噪声规模
+    terrainInfluenceStrength: number;  // 地形影响强度 (0-1)
+    terrainSteepnessThreshold: number;  // 陡峭度阈值
+    
+    enableHistoricalLayers: boolean;  // 启用历史分层
+    historicalLayerRadius: number;  // 老城区半径
+    modernLayerStart: number;  // 现代区域起始半径
+    oldCityPerturbation: number;  // 老城区扰动强度
+    modernCityPerturbation: number;  // 现代区域扰动强度
+    
+    enableDirectionalBias: boolean;  // 启用方向偏好
+    biasDirection: number;  // 偏好方向(弧度)
+    biasStrength: number;  // 偏好强度 (0-1)
+    biasNoiseScale: number;  // 偏好噪声规模
 }
 
 /**
@@ -62,6 +85,12 @@ export default class StreamlineGenerator {
     public streamlinesMajor: Vector[][] = [];
     public streamlinesMinor: Vector[][] = [];
     public allStreamlinesSimple: Vector[][] = [];  // Reduced vertex count
+    
+    // 真实性增强系统
+    protected perturbationNoise: SimplexNoise;
+    protected terrainNoise: SimplexNoise;
+    protected biasNoise: SimplexNoise;
+    protected centerPoint: Vector;  // 用于历史分层的城市中心
 
     /**
      * Uses world-space coordinates
@@ -86,6 +115,15 @@ export default class StreamlineGenerator {
         this.minorGrid = new GridStorage(this.worldDimensions, this.origin, params.dsep);
 
         this.setParamsSq();
+        
+        // 初始化真实性增强系统
+        this.perturbationNoise = new SimplexNoise();
+        this.terrainNoise = new SimplexNoise();
+        this.biasNoise = new SimplexNoise();
+        this.centerPoint = new Vector(
+            this.origin.x + this.worldDimensions.x / 2,
+            this.origin.y + this.worldDimensions.y / 2
+        );
     }
 
     clearStreamlines(): void {
@@ -100,6 +138,154 @@ export default class StreamlineGenerator {
      */
     setBoundaryChecker(checker: BoundaryChecker | null): void {
         this.boundaryChecker = checker;
+    }
+    
+    /**
+     * 计算路径扰动角度
+     * 返回扰动的弧度值
+     */
+    protected calculatePathPerturbation(point: Vector): number {
+        if (!this.params.enablePathPerturbation) {
+            return 0;
+        }
+        
+        const scale = this.params.perturbationFrequency;
+        let perturbation = 0;
+        let amplitude = this.params.perturbationStrength;
+        let frequency = 1;
+        
+        // 多层噪声叠加,产生更自然的效果
+        for (let i = 0; i < this.params.perturbationOctaves; i++) {
+            perturbation += this.perturbationNoise.noise2D(
+                point.x / scale * frequency,
+                point.y / scale * frequency
+            ) * amplitude;
+            
+            amplitude *= 0.5;  // 每层振幅递减
+            frequency *= 2;    // 每层频率递增
+        }
+        
+        // 将噪声值(-1到1)映射到角度范围(-π/4 到 π/4)
+        return perturbation * Math.PI / 4;
+    }
+    
+    /**
+     * 计算地形对路径的影响
+     * 返回一个修正向量,使道路避开陡峭地形
+     */
+    protected calculateTerrainInfluence(point: Vector, direction: Vector): Vector {
+        if (!this.params.enableTerrainInfluence) {
+            return new Vector(0, 0);
+        }
+        
+        const scale = this.params.terrainNoiseScale;
+        
+        // 采样当前点的地形高度
+        const currentHeight = this.terrainNoise.noise2D(point.x / scale, point.y / scale);
+        
+        // 采样梯度方向的地形高度
+        const sampleDistance = this.params.dstep * 0.5;
+        const gradX = this.terrainNoise.noise2D(
+            (point.x + sampleDistance) / scale,
+            point.y / scale
+        ) - currentHeight;
+        const gradY = this.terrainNoise.noise2D(
+            point.x / scale,
+            (point.y + sampleDistance) / scale
+        ) - currentHeight;
+        
+        // 地形梯度向量(指向上坡方向)
+        const gradient = new Vector(-gradX, -gradY);
+        
+        // 如果坡度超过阈值,让道路偏离梯度方向
+        if (gradient.length() > this.params.terrainSteepnessThreshold) {
+            // 道路倾向于沿着等高线(垂直于梯度)
+            const perpendicular = new Vector(-gradient.y, gradient.x);
+            perpendicular.setLength(this.params.terrainInfluenceStrength);
+            return perpendicular;
+        }
+        
+        return new Vector(0, 0);
+    }
+    
+    /**
+     * 根据距离中心的距离计算历史层次的扰动强度
+     */
+    protected getHistoricalPerturbationStrength(point: Vector): number {
+        if (!this.params.enableHistoricalLayers) {
+            return 1.0;
+        }
+        
+        const distanceFromCenter = point.distanceTo(this.centerPoint);
+        
+        // 老城区:高扰动
+        if (distanceFromCenter < this.params.historicalLayerRadius) {
+            return this.params.oldCityPerturbation;
+        }
+        
+        // 现代区域:低扰动
+        if (distanceFromCenter > this.params.modernLayerStart) {
+            return this.params.modernCityPerturbation;
+        }
+        
+        // 过渡区域:线性插值
+        const t = (distanceFromCenter - this.params.historicalLayerRadius) / 
+                  (this.params.modernLayerStart - this.params.historicalLayerRadius);
+        return this.params.oldCityPerturbation * (1 - t) + this.params.modernCityPerturbation * t;
+    }
+    
+    /**
+     * 计算方向偏好影响
+     */
+    protected calculateDirectionalBias(point: Vector): number {
+        if (!this.params.enableDirectionalBias) {
+            return 0;
+        }
+        
+        // 使用噪声场来创建区域性的方向偏好
+        const scale = this.params.biasNoiseScale;
+        const noiseValue = this.biasNoise.noise2D(point.x / scale, point.y / scale);
+        
+        // 噪声值影响偏好强度
+        const effectiveStrength = this.params.biasStrength * (noiseValue * 0.5 + 0.5);
+        
+        return this.params.biasDirection * effectiveStrength;
+    }
+    
+    /**
+     * 应用所有真实性增强效果到方向向量
+     */
+    protected applyRealismEnhancements(point: Vector, direction: Vector): Vector {
+        let enhancedDirection = direction.clone();
+        
+        // 1. 基础路径扰动
+        let perturbationAngle = this.calculatePathPerturbation(point);
+        
+        // 2. 历史层次影响扰动强度
+        const historicalStrength = this.getHistoricalPerturbationStrength(point);
+        perturbationAngle *= historicalStrength;
+        
+        // 3. 方向偏好
+        perturbationAngle += this.calculateDirectionalBias(point);
+        
+        // 应用旋转
+        if (perturbationAngle !== 0) {
+            const cos = Math.cos(perturbationAngle);
+            const sin = Math.sin(perturbationAngle);
+            const x = enhancedDirection.x * cos - enhancedDirection.y * sin;
+            const y = enhancedDirection.x * sin + enhancedDirection.y * cos;
+            enhancedDirection = new Vector(x, y);
+        }
+        
+        // 4. 地形影响
+        const terrainInfluence = this.calculateTerrainInfluence(point, enhancedDirection);
+        enhancedDirection.add(terrainInfluence);
+        
+        // 归一化并恢复原长度
+        const originalLength = direction.length();
+        enhancedDirection.setLength(originalLength);
+        
+        return enhancedDirection;
     }
 
     /**
@@ -430,7 +616,7 @@ export default class StreamlineGenerator {
     protected streamlineIntegrationStep(params: StreamlineIntegration, major: boolean, collideBoth: boolean): void {
         if (params.valid) {
             params.streamline.push(params.previousPoint);
-            const nextDirection = this.integrator.integrate(params.previousPoint, major);
+            let nextDirection = this.integrator.integrate(params.previousPoint, major);
 
             // Stop at degenerate point
             if (nextDirection.lengthSq() < 0.01) {
@@ -442,6 +628,9 @@ export default class StreamlineGenerator {
             if (nextDirection.dot(params.previousDirection) < 0) {
                 nextDirection.negate();
             }
+            
+            // === 应用真实性增强 ===
+            nextDirection = this.applyRealismEnhancements(params.previousPoint, nextDirection);
 
             const nextPoint = params.previousPoint.clone().add(nextDirection);
 

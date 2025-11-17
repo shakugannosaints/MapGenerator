@@ -20,6 +20,7 @@ import CanvasWrapper, {DefaultCanvasWrapper} from './canvas_wrapper';
 import Buildings, {BuildingModel} from './buildings';
 import PolygonUtil from '../impl/polygon_util';
 import CityBoundary from './city_boundary';
+import Util from '../util';
 
 /**
  * Handles Map folder, glues together impl
@@ -60,6 +61,28 @@ export default class MainGUI {
         seedTries: 300,
         simplifyTolerance: 0.5,
         collideEarly: 0,
+        
+        // 真实性增强参数默认值
+        enablePathPerturbation: false,
+        perturbationStrength: 0.2,
+        perturbationFrequency: 150,
+        perturbationOctaves: 2,
+        
+        enableTerrainInfluence: false,
+        terrainNoiseScale: 200,
+        terrainInfluenceStrength: 0.5,
+        terrainSteepnessThreshold: 0.3,
+        
+        enableHistoricalLayers: false,
+        historicalLayerRadius: 200,
+        modernLayerStart: 500,
+        oldCityPerturbation: 2.0,
+        modernCityPerturbation: 0.3,
+        
+        enableDirectionalBias: false,
+        biasDirection: 0,
+        biasStrength: 0.3,
+        biasNoiseScale: 200,
     };
 
     private redraw: boolean = true;
@@ -107,9 +130,16 @@ export default class MainGUI {
 
         this.coastline = new WaterGUI(tensorField, this.coastlineParams, integrator,
             this.guiFolder, closeTensorFolder, '水系', redraw).initFolder();
-        this.mainRoads = new RoadGUI(this.mainParams, integrator, this.guiFolder, closeTensorFolder, '主干道', redraw).initFolder();
-        this.majorRoads = new RoadGUI(this.majorParams, integrator, this.guiFolder, closeTensorFolder, '主要道路', redraw, this.animate).initFolder();
-        this.minorRoads = new RoadGUI(this.minorParams, integrator, this.guiFolder, closeTensorFolder, '次要道路', redraw, this.animate).initFolder();
+        
+        // 创建道路文件夹
+        const roadsFolder = this.guiFolder.addFolder('道路');
+        
+        // 添加统一的真实性增强设置
+        this.addUnifiedRealismEnhancementsFolder(roadsFolder);
+        
+        this.mainRoads = new RoadGUI(this.mainParams, integrator, roadsFolder, closeTensorFolder, '主干道', redraw).initFolder();
+        this.majorRoads = new RoadGUI(this.majorParams, integrator, roadsFolder, closeTensorFolder, '主要道路', redraw, this.animate).initFolder();
+        this.minorRoads = new RoadGUI(this.minorParams, integrator, roadsFolder, closeTensorFolder, '次要道路', redraw, this.animate).initFolder();
         
         // 城市边界 UI
         this.cityBoundary = new CityBoundary(dragController, redraw);
@@ -402,7 +432,182 @@ export default class MainGUI {
     }
 
     /**
-     * 公开方法：在任意canvas上绘制城市边界（如果启用）
+     * 添加统一的道路真实性增强设置面板
+     * 可以一键设置所有道路层级的真实性参数
+     */
+    private addUnifiedRealismEnhancementsFolder(roadsFolder: dat.GUI): void {
+        const realismFolder = roadsFolder.addFolder('真实性增强(统一设置)');
+        
+        // 创建一个共享的参数对象用于UI显示
+        const sharedParams = {
+            // 路径扰动
+            enablePathPerturbation: false,
+            perturbationStrength: 0.2,
+            perturbationFrequency: 150,
+            perturbationOctaves: 2,
+            
+            // 地形影响
+            enableTerrainInfluence: false,
+            terrainNoiseScale: 200,
+            terrainInfluenceStrength: 0.5,
+            terrainSteepnessThreshold: 0.3,
+            
+            // 历史分层
+            enableHistoricalLayers: false,
+            historicalLayerRadius: 200,
+            modernLayerStart: 500,
+            oldCityPerturbation: 2.0,
+            modernCityPerturbation: 0.3,
+            
+            // 方向偏好
+            enableDirectionalBias: false,
+            biasDirection: 0,
+            biasStrength: 0.3,
+            biasNoiseScale: 200,
+        };
+        
+        // 应用到所有道路的函数
+        const applyToAllRoads = () => {
+            // 复制所有真实性参数到三个道路层级
+            const roadParams = [this.mainParams, this.majorParams, this.minorParams];
+            for (const params of roadParams) {
+                params.enablePathPerturbation = sharedParams.enablePathPerturbation;
+                params.perturbationStrength = sharedParams.perturbationStrength;
+                params.perturbationFrequency = sharedParams.perturbationFrequency;
+                params.perturbationOctaves = sharedParams.perturbationOctaves;
+                
+                params.enableTerrainInfluence = sharedParams.enableTerrainInfluence;
+                params.terrainNoiseScale = sharedParams.terrainNoiseScale;
+                params.terrainInfluenceStrength = sharedParams.terrainInfluenceStrength;
+                params.terrainSteepnessThreshold = sharedParams.terrainSteepnessThreshold;
+                
+                params.enableHistoricalLayers = sharedParams.enableHistoricalLayers;
+                params.historicalLayerRadius = sharedParams.historicalLayerRadius;
+                params.modernLayerStart = sharedParams.modernLayerStart;
+                params.oldCityPerturbation = sharedParams.oldCityPerturbation;
+                params.modernCityPerturbation = sharedParams.modernCityPerturbation;
+                
+                params.enableDirectionalBias = sharedParams.enableDirectionalBias;
+                params.biasDirection = sharedParams.biasDirection;
+                params.biasStrength = sharedParams.biasStrength;
+                params.biasNoiseScale = sharedParams.biasNoiseScale;
+            }
+            
+            // 更新所有道路层级的GUI
+            Util.updateGui(roadsFolder);
+            log.info('已将真实性增强设置应用到所有道路层级');
+        };
+        
+        // 预设配置
+        const presets = {
+            '应用到所有道路': applyToAllRoads,
+            '无增强': () => {
+                sharedParams.enablePathPerturbation = false;
+                sharedParams.enableTerrainInfluence = false;
+                sharedParams.enableHistoricalLayers = false;
+                sharedParams.enableDirectionalBias = false;
+                applyToAllRoads();
+            },
+            '默认(现代)': () => {
+                sharedParams.enablePathPerturbation = true;
+                sharedParams.perturbationStrength = 0.1;
+                sharedParams.perturbationFrequency = 200;
+                sharedParams.perturbationOctaves = 2;
+                sharedParams.enableTerrainInfluence = false;
+                sharedParams.enableHistoricalLayers = false;
+                sharedParams.enableDirectionalBias = false;
+                applyToAllRoads();
+            },
+            '老城区': () => {
+                sharedParams.enablePathPerturbation = true;
+                sharedParams.perturbationStrength = 0.4;
+                sharedParams.perturbationFrequency = 80;
+                sharedParams.perturbationOctaves = 3;
+                sharedParams.enableTerrainInfluence = true;
+                sharedParams.terrainNoiseScale = 150;
+                sharedParams.terrainInfluenceStrength = 0.5;
+                sharedParams.terrainSteepnessThreshold = 0.3;
+                sharedParams.enableHistoricalLayers = false;
+                sharedParams.enableDirectionalBias = false;
+                applyToAllRoads();
+            },
+            '混合城市': () => {
+                sharedParams.enablePathPerturbation = true;
+                sharedParams.perturbationStrength = 0.25;
+                sharedParams.perturbationFrequency = 150;
+                sharedParams.perturbationOctaves = 2;
+                sharedParams.enableTerrainInfluence = false;
+                sharedParams.enableHistoricalLayers = true;
+                sharedParams.historicalLayerRadius = 200;
+                sharedParams.modernLayerStart = 500;
+                sharedParams.oldCityPerturbation = 2.0;
+                sharedParams.modernCityPerturbation = 0.3;
+                sharedParams.enableDirectionalBias = false;
+                applyToAllRoads();
+            },
+            '地形适应': () => {
+                sharedParams.enablePathPerturbation = true;
+                sharedParams.perturbationStrength = 0.15;
+                sharedParams.perturbationFrequency = 180;
+                sharedParams.perturbationOctaves = 2;
+                sharedParams.enableTerrainInfluence = true;
+                sharedParams.terrainNoiseScale = 200;
+                sharedParams.terrainInfluenceStrength = 1.0;
+                sharedParams.terrainSteepnessThreshold = 0.2;
+                sharedParams.enableHistoricalLayers = false;
+                sharedParams.enableDirectionalBias = false;
+                applyToAllRoads();
+            },
+        };
+        
+        // 预设按钮
+        realismFolder.add(presets, '应用到所有道路').name('⚡ 应用当前设置');
+        realismFolder.add(presets, '无增强');
+        realismFolder.add(presets, '默认(现代)');
+        realismFolder.add(presets, '老城区');
+        realismFolder.add(presets, '混合城市');
+        realismFolder.add(presets, '地形适应');
+        
+        // 路径扰动
+        const perturbFolder = realismFolder.addFolder('路径扰动');
+        perturbFolder.add(sharedParams, 'enablePathPerturbation').name('启用路径扰动').onChange(applyToAllRoads);
+        perturbFolder.add(sharedParams, 'perturbationStrength', 0, 1).name('扰动强度').step(0.01).onChange(applyToAllRoads);
+        perturbFolder.add(sharedParams, 'perturbationFrequency', 10, 500).name('扰动频率(规模)').step(10).onChange(applyToAllRoads);
+        perturbFolder.add(sharedParams, 'perturbationOctaves', 1, 5).name('噪声叠加层数').step(1).onChange(applyToAllRoads);
+        
+        // 地形影响
+        const terrainFolder = realismFolder.addFolder('地形影响');
+        terrainFolder.add(sharedParams, 'enableTerrainInfluence').name('启用地形影响').onChange(applyToAllRoads);
+        terrainFolder.add(sharedParams, 'terrainNoiseScale', 50, 500).name('地形噪声规模').step(10).onChange(applyToAllRoads);
+        terrainFolder.add(sharedParams, 'terrainInfluenceStrength', 0, 2).name('地形影响强度').step(0.1).onChange(applyToAllRoads);
+        terrainFolder.add(sharedParams, 'terrainSteepnessThreshold', 0, 1).name('陡峭度阈值').step(0.05).onChange(applyToAllRoads);
+        
+        // 历史分层
+        const historyFolder = realismFolder.addFolder('历史分层');
+        historyFolder.add(sharedParams, 'enableHistoricalLayers').name('启用历史分层').onChange(applyToAllRoads);
+        historyFolder.add(sharedParams, 'historicalLayerRadius', 50, 500).name('老城区半径').step(10).onChange(applyToAllRoads);
+        historyFolder.add(sharedParams, 'modernLayerStart', 200, 1000).name('现代区域起始半径').step(10).onChange(applyToAllRoads);
+        historyFolder.add(sharedParams, 'oldCityPerturbation', 0.5, 3).name('老城区扰动倍数').step(0.1).onChange(applyToAllRoads);
+        historyFolder.add(sharedParams, 'modernCityPerturbation', 0, 1).name('现代区域扰动倍数').step(0.1).onChange(applyToAllRoads);
+        
+        // 方向偏好
+        const biasFolder = realismFolder.addFolder('方向偏好');
+        biasFolder.add(sharedParams, 'enableDirectionalBias').name('启用方向偏好').onChange(applyToAllRoads);
+        biasFolder.add(sharedParams, 'biasDirection', -Math.PI, Math.PI).name('偏好方向(弧度)').step(0.1).onChange(applyToAllRoads);
+        biasFolder.add(sharedParams, 'biasStrength', 0, 1).name('偏好强度').step(0.05).onChange(applyToAllRoads);
+        biasFolder.add(sharedParams, 'biasNoiseScale', 50, 500).name('偏好噪声规模').step(10).onChange(applyToAllRoads);
+        
+        // 添加说明
+        const helpText = realismFolder.addFolder('💡 使用说明');
+        // dat.GUI不支持纯文本,但我们可以添加一个只读控制器
+        const help = {
+            说明: '调整参数后点击"应用到所有道路"按钮,\n或直接点击预设按钮一键设置。\n也可在各道路子菜单中单独设置。'
+        };
+        // 这个控制器只是用来显示说明,不可编辑
+    }
+
+    /**
+     * 公开方法：在任意canvas上绘制城市边界(如果启用)
      */
     drawCityBoundaryIfEnabled(canvas: CanvasWrapper): void {
         if (!this.cityBoundary.enabled) return;
