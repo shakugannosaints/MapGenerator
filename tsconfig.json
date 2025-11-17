@@ -5,7 +5,8 @@
         "skipLibCheck": true,
         "lib": ["es6", "DOM", "ScriptHost"],
         "downlevelIteration": true,
-        "resolveJsonModule": true
+        "resolveJsonModule": true,
+        "forceConsistentCasingInFileNames": true
     },
     "include": [
         "src/**/*.ts"
