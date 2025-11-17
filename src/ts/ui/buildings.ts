@@ -99,10 +99,10 @@ export default class Buildings {
                 private redraw: () => void,
                 private dstep: number,
                 private _animate: boolean) {
-        folder.add({'AddBuildings': () => this.generate(this._animate)}, 'AddBuildings');
-        folder.add(this.buildingParams, 'minArea');
-        folder.add(this.buildingParams, 'shrinkSpacing');
-        folder.add(this.buildingParams, 'chanceNoDivide');
+        folder.add({'生成建筑': () => this.generate(this._animate)}, '生成建筑');
+        folder.add(this.buildingParams, 'minArea').name('最小面积');
+        folder.add(this.buildingParams, 'shrinkSpacing').name('收缩间距');
+        folder.add(this.buildingParams, 'chanceNoDivide').name('不分割概率');
         this.polygonFinder = new PolygonFinder([], this.buildingParams, this.tensorField);
     }
 

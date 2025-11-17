@@ -21,17 +21,17 @@ export default class TensorFieldGUI extends TensorField {
         super(noiseParams);
         // For custom naming of gui buttons
         const tensorFieldGuiObj = {
-            reset: (): void => this.reset(),
-            setRecommended: (): void => this.setRecommended(),
-            addRadial: (): void => this.addRadialRandom(),
-            addGrid: (): void => this.addGridRandom(),
+            重置: (): void => this.reset(),
+            推荐配置: (): void => this.setRecommended(),
+            添加径向: (): void => this.addRadialRandom(),
+            添加网格: (): void => this.addGridRandom(),
         };
 
-        this.guiFolder.add(tensorFieldGuiObj, 'reset');
-        this.guiFolder.add(this, 'smooth');
-        this.guiFolder.add(tensorFieldGuiObj, 'setRecommended');
-        this.guiFolder.add(tensorFieldGuiObj, 'addRadial');
-        this.guiFolder.add(tensorFieldGuiObj, 'addGrid');
+        this.guiFolder.add(tensorFieldGuiObj, '重置');
+        this.guiFolder.add(this, 'smooth').name('平滑');
+        this.guiFolder.add(tensorFieldGuiObj, '推荐配置');
+        this.guiFolder.add(tensorFieldGuiObj, '添加径向');
+        this.guiFolder.add(tensorFieldGuiObj, '添加网格');
     }
 
     /**
@@ -144,8 +144,8 @@ export default class TensorFieldGUI extends TensorField {
         );
         const removeFieldObj = {remove: () => this.removeFieldGUI(field, deregisterDrag)};
         
-        // Give dat gui removeField button
-        folder.add(removeFieldObj, 'remove');
+    // Give dat gui removeField button
+    folder.add(removeFieldObj, 'remove').name('移除');
         field.setGui(this.guiFolder, folder);
     }
 

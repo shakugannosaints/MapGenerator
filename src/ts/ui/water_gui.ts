@@ -34,21 +34,21 @@ export default class WaterGUI extends RoadGUI {
     }
 
     initFolder(): WaterGUI {
-        const folder = this.guiFolder.addFolder(this.folderName);
-        folder.add({Generate: () => this.generateRoads()}, 'Generate');
+    const folder = this.guiFolder.addFolder(this.folderName);
+    folder.add({生成: () => this.generateRoads()}, '生成');
         
-        const coastParamsFolder = folder.addFolder('CoastParams');
-        coastParamsFolder.add(this.params.coastNoise, 'noiseEnabled');
-        coastParamsFolder.add(this.params.coastNoise, 'noiseSize');
-        coastParamsFolder.add(this.params.coastNoise, 'noiseAngle');
-        const riverParamsFolder = folder.addFolder('RiverParams');
-        riverParamsFolder.add(this.params.riverNoise, 'noiseEnabled');
-        riverParamsFolder.add(this.params.riverNoise, 'noiseSize');
-        riverParamsFolder.add(this.params.riverNoise, 'noiseAngle');
+    const coastParamsFolder = folder.addFolder('海岸参数');
+    coastParamsFolder.add(this.params.coastNoise, 'noiseEnabled').name('启用噪声');
+    coastParamsFolder.add(this.params.coastNoise, 'noiseSize').name('噪声规模');
+    coastParamsFolder.add(this.params.coastNoise, 'noiseAngle').name('噪声角度');
+    const riverParamsFolder = folder.addFolder('河流参数');
+    riverParamsFolder.add(this.params.riverNoise, 'noiseEnabled').name('启用噪声');
+    riverParamsFolder.add(this.params.riverNoise, 'noiseSize').name('噪声规模');
+    riverParamsFolder.add(this.params.riverNoise, 'noiseAngle').name('噪声角度');
         
-        folder.add(this.params, 'simplifyTolerance');
-        const devParamsFolder = folder.addFolder('Dev');
-        this.addDevParamsToFolder(this.params, devParamsFolder);
+    folder.add(this.params, 'simplifyTolerance').name('简化容差');
+    const devParamsFolder = folder.addFolder('开发');
+    this.addDevParamsToFolder(this.params, devParamsFolder);
         return this;
     }
 
@@ -99,14 +99,14 @@ export default class WaterGUI extends RoadGUI {
     }
 
     protected addDevParamsToFolder(params: StreamlineParams, folder: dat.GUI): void {
-        folder.add(params, 'dsep');
-        folder.add(params, 'dtest');
-        folder.add(params, 'pathIterations');
-        folder.add(params, 'seedTries');
-        folder.add(params, 'dstep');
-        folder.add(params, 'dlookahead');
-        folder.add(params, 'dcirclejoin');
-        folder.add(params, 'joinangle');
+        folder.add(params, 'dsep').name('分离距离 (dsep)');
+        folder.add(params, 'dtest').name('检测距离 (dtest)');
+        folder.add(params, 'pathIterations').name('路径迭代次数');
+        folder.add(params, 'seedTries').name('种子尝试次数');
+        folder.add(params, 'dstep').name('步长 (dstep)');
+        folder.add(params, 'dlookahead').name('前瞻距离 (dlookahead)');
+        folder.add(params, 'dcirclejoin').name('圆形连接 (dcirclejoin)');
+        folder.add(params, 'joinangle').name('连接角度');
     }
     
 }

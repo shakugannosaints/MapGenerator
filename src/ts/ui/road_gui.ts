@@ -37,22 +37,22 @@ export default class RoadGUI {
 
     initFolder(): RoadGUI {
         const roadGUI = {
-            Generate: () => this.generateRoads(this._animate).then(() => this.redraw()),
-            JoinDangling: (): void => {
+            生成: () => this.generateRoads(this._animate).then(() => this.redraw()),
+            连接末端: (): void => {
                 this.streamlines.joinDanglingStreamlines();
                 this.redraw();
             },
         };
 
         const folder = this.guiFolder.addFolder(this.folderName);
-        folder.add(roadGUI, 'Generate');
-        // folder.add(roadGUI, 'JoinDangling');
+        folder.add(roadGUI, '生成');
+        // folder.add(roadGUI, '连接末端');
         
-        const paramsFolder = folder.addFolder('Params');
-        paramsFolder.add(this.params, 'dsep');
-        paramsFolder.add(this.params, 'dtest');
+    const paramsFolder = folder.addFolder('参数');
+    paramsFolder.add(this.params, 'dsep').name('分离距离 (dsep)');
+    paramsFolder.add(this.params, 'dtest').name('检测距离 (dtest)');
 
-        const devParamsFolder = paramsFolder.addFolder('Dev');
+        const devParamsFolder = paramsFolder.addFolder('开发');
         this.addDevParamsToFolder(this.params, devParamsFolder);
         return this;
     }
@@ -119,14 +119,14 @@ export default class RoadGUI {
     }
 
     protected addDevParamsToFolder(params: StreamlineParams, folder: dat.GUI): void {
-        folder.add(params, 'pathIterations');
-        folder.add(params, 'seedTries');
-        folder.add(params, 'dstep');
-        folder.add(params, 'dlookahead');
-        folder.add(params, 'dcirclejoin');
-        folder.add(params, 'joinangle');
-        folder.add(params, 'simplifyTolerance');
-        folder.add(params, 'collideEarly');
+        folder.add(params, 'pathIterations').name('路径迭代次数');
+        folder.add(params, 'seedTries').name('种子尝试次数');
+        folder.add(params, 'dstep').name('步长 (dstep)');
+        folder.add(params, 'dlookahead').name('前瞻距离 (dlookahead)');
+        folder.add(params, 'dcirclejoin').name('圆形连接 (dcirclejoin)');
+        folder.add(params, 'joinangle').name('连接角度');
+        folder.add(params, 'simplifyTolerance').name('简化容差');
+        folder.add(params, 'collideEarly').name('提前碰撞检测');
     }
 
     /**

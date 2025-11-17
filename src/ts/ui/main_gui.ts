@@ -60,10 +60,10 @@ export default class MainGUI {
     private redraw: boolean = true;
 
     constructor(private guiFolder: dat.GUI, private tensorField: TensorField, private closeTensorFolder: () => void) {
-        guiFolder.add(this, 'generateEverything');
-        // guiFolder.add(this, 'simpleBenchMark');
-        const animateController = guiFolder.add(this, 'animate');
-        guiFolder.add(this, 'animationSpeed');
+    guiFolder.add({'生成全部': () => this.generateEverything()}, '生成全部');
+    // guiFolder.add(this, 'simpleBenchMark');
+    const animateController = guiFolder.add(this, 'animate').name('动画开关');
+    guiFolder.add(this, 'animationSpeed').name('动画速度');
 
         this.coastlineParams = Object.assign({
             coastNoise: {
@@ -98,22 +98,22 @@ export default class MainGUI {
         const redraw = () => this.redraw = true;
 
         this.coastline = new WaterGUI(tensorField, this.coastlineParams, integrator,
-            this.guiFolder, closeTensorFolder, 'Water', redraw).initFolder();
-        this.mainRoads = new RoadGUI(this.mainParams, integrator, this.guiFolder, closeTensorFolder, 'Main', redraw).initFolder();
-        this.majorRoads = new RoadGUI(this.majorParams, integrator, this.guiFolder, closeTensorFolder, 'Major', redraw, this.animate).initFolder();
-        this.minorRoads = new RoadGUI(this.minorParams, integrator, this.guiFolder, closeTensorFolder, 'Minor', redraw, this.animate).initFolder();
+            this.guiFolder, closeTensorFolder, '水系', redraw).initFolder();
+        this.mainRoads = new RoadGUI(this.mainParams, integrator, this.guiFolder, closeTensorFolder, '主干道', redraw).initFolder();
+        this.majorRoads = new RoadGUI(this.majorParams, integrator, this.guiFolder, closeTensorFolder, '主要道路', redraw, this.animate).initFolder();
+        this.minorRoads = new RoadGUI(this.minorParams, integrator, this.guiFolder, closeTensorFolder, '次要道路', redraw, this.animate).initFolder();
         
-        const parks = guiFolder.addFolder('Parks');
-        parks.add({Generate: () => {
+        const parks = guiFolder.addFolder('公园');
+        parks.add({生成: () => {
             this.buildings.reset();
             this.addParks();
             this.redraw = true;
-        }}, 'Generate');
-        parks.add(this, 'clusterBigParks');
-        parks.add(this, 'numBigParks');
-        parks.add(this, 'numSmallParks');
+        }}, '生成');
+    parks.add(this, 'clusterBigParks').name('聚合大公园');
+    parks.add(this, 'numBigParks').name('大公园数量');
+    parks.add(this, 'numSmallParks').name('小公园数量');
 
-        const buildingsFolder = guiFolder.addFolder('Buildings');
+    const buildingsFolder = guiFolder.addFolder('建筑');
         this.buildings = new Buildings(tensorField, buildingsFolder, redraw, this.minorParams.dstep, this.animate);
         this.buildings.setPreGenerateCallback(() => {
             const allStreamlines = [];

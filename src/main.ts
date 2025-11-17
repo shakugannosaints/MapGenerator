@@ -55,16 +55,16 @@ class Main {
     private modelGenerator: ModelGenerator;
 
     constructor() {
-        // GUI Setup
-        const zoomController = this.gui.add(this.domainController, 'zoom');
-        this.domainController.setZoomUpdate(() => zoomController.updateDisplay());
-        this.gui.add(this, 'generate');
+    // GUI Setup
+    const zoomController = this.gui.add(this.domainController, 'zoom').name('缩放');
+    this.domainController.setZoomUpdate(() => zoomController.updateDisplay());
+    this.gui.add({'生成': () => this.generate()}, '生成');
 
-        this.tensorFolder = this.gui.addFolder('Tensor Field');
-        this.roadsFolder = this.gui.addFolder('Map');
-        this.styleFolder = this.gui.addFolder('Style');
-        this.optionsFolder = this.gui.addFolder('Options');
-        this.downloadsFolder = this.gui.addFolder('Download');
+    this.tensorFolder = this.gui.addFolder('张量场');
+    this.roadsFolder = this.gui.addFolder('地图');
+    this.styleFolder = this.gui.addFolder('样式');
+    this.optionsFolder = this.gui.addFolder('选项');
+    this.downloadsFolder = this.gui.addFolder('下载');
 
         // Canvas setup
         this.canvas = document.getElementById(Util.CANVAS_ID) as HTMLCanvasElement;
@@ -77,28 +77,28 @@ class Main {
         }
 
         // Style setup
-        this.styleFolder.add(this, 'colourScheme', Object.keys(ColourSchemes)).onChange((val: string) => this.changeColourScheme(val));
+        this.styleFolder.add(this, 'colourScheme', Object.keys(ColourSchemes)).name('配色方案').onChange((val: string) => this.changeColourScheme(val));
 
-        this.styleFolder.add(this, 'zoomBuildings').onChange((val: boolean) => {
+        this.styleFolder.add(this, 'zoomBuildings').name('缩放显示建筑').onChange((val: boolean) => {
             // Force redraw
             this.previousFrameDrawTensor = true;
             this._style.zoomBuildings = val;
         });
 
-        this.styleFolder.add(this, 'buildingModels').onChange((val: boolean) => {
+        this.styleFolder.add(this, 'buildingModels').name('建筑模型').onChange((val: boolean) => {
             // Force redraw
             this.previousFrameDrawTensor = true;
             this._style.showBuildingModels = val;
         });
         
-        this.styleFolder.add(this, 'showFrame').onChange((val: boolean) => {
+        this.styleFolder.add(this, 'showFrame').name('显示边框').onChange((val: boolean) => {
             this.previousFrameDrawTensor = true;
             this._style.showFrame = val;
         });
 
-        this.styleFolder.add(this.domainController, 'orthographic');
-        this.styleFolder.add(this, 'cameraX', -15, 15).step(1).onChange(() => this.setCameraDirection());
-        this.styleFolder.add(this, 'cameraY', -15, 15).step(1).onChange(() => this.setCameraDirection());
+        this.styleFolder.add(this.domainController, 'orthographic').name('正交投影');
+        this.styleFolder.add(this, 'cameraX', -15, 15).step(1).name('相机X').onChange(() => this.setCameraDirection());
+        this.styleFolder.add(this, 'cameraY', -15, 15).step(1).name('相机Y').onChange(() => this.setCameraDirection());
 
 
         const noiseParamsPlaceholder: NoiseParams = {  // Placeholder values for park + water noise
@@ -112,14 +112,14 @@ class Main {
         this.tensorField = new TensorFieldGUI(this.tensorFolder, this.dragController, true, noiseParamsPlaceholder);
         this.mainGui = new MainGUI(this.roadsFolder, this.tensorField, () => this.tensorFolder.close());
 
-        this.optionsFolder.add(this.tensorField, 'drawCentre');
-        this.optionsFolder.add(this, 'highDPI').onChange((high: boolean) => this.changeCanvasScale(high));
+    this.optionsFolder.add(this.tensorField, 'drawCentre').name('绘制中心点');
+    this.optionsFolder.add(this, 'highDPI').name('高DPI').onChange((high: boolean) => this.changeCanvasScale(high));
         
-        this.downloadsFolder.add(this, 'imageScale', 1, 5).step(1);
-        this.downloadsFolder.add({"PNG": () => this.downloadPng()}, 'PNG');  // This allows custom naming of button
-        this.downloadsFolder.add({"SVG": () => this.downloadSVG()}, 'SVG');
-        this.downloadsFolder.add({"STL": () => this.downloadSTL()}, 'STL');
-        this.downloadsFolder.add({"Heightmap": () => this.downloadHeightmap()}, 'Heightmap');
+    this.downloadsFolder.add(this, 'imageScale', 1, 5).step(1).name('图片缩放');
+    this.downloadsFolder.add({"PNG": () => this.downloadPng()}, 'PNG');  // 文件类型保持通用缩写
+    this.downloadsFolder.add({"SVG": () => this.downloadSVG()}, 'SVG');
+    this.downloadsFolder.add({"STL": () => this.downloadSTL()}, 'STL');
+    this.downloadsFolder.add({"高度图": () => this.downloadHeightmap()}, '高度图');
 
         this.changeColourScheme(this.colourScheme);
         this.tensorField.setRecommended();

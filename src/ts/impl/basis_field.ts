@@ -73,10 +73,10 @@ export abstract class BasisField {
     setGui(parent: dat.GUI, folder: dat.GUI): void {
         this.parentFolder = parent;
         this.folder = folder;
-        folder.add(this._centre, 'x');
-        folder.add(this._centre, 'y');
-        folder.add(this, '_size');
-        folder.add(this, '_decay', -50, 50);
+        folder.add(this._centre, 'x').name('中心 X');
+        folder.add(this._centre, 'y').name('中心 Y');
+        folder.add(this, '_size').name('大小');
+        folder.add(this, '_decay', -50, 50).name('衰减');
     }
 
     /**
@@ -96,7 +96,7 @@ export abstract class BasisField {
 }
 
 export class Grid extends BasisField {
-    readonly FOLDER_NAME = `Grid ${Grid.folderNameIndex++}`;
+    readonly FOLDER_NAME = `网格 ${Grid.folderNameIndex++}`;
     readonly FIELD_TYPE = FIELD_TYPE.Grid;
 
     constructor(centre: Vector, size: number, decay: number, private _theta: number) {
@@ -112,7 +112,7 @@ export class Grid extends BasisField {
 
         // GUI in degrees, convert to rads
         const thetaProp = {theta: this._theta * 180 / Math.PI};
-        const thetaController = folder.add(thetaProp, 'theta', -90, 90);
+        const thetaController = folder.add(thetaProp, 'theta', -90, 90).name('角度 (°)');
         thetaController.onChange(theta => this._theta = theta * (Math.PI / 180));
     }
 
@@ -124,7 +124,7 @@ export class Grid extends BasisField {
 }
 
 export class Radial extends BasisField {
-    readonly FOLDER_NAME = `Radial ${Radial.folderNameIndex++}`;
+    readonly FOLDER_NAME = `径向 ${Radial.folderNameIndex++}`;
     readonly FIELD_TYPE = FIELD_TYPE.Radial;
 
     constructor(centre: Vector, size: number, decay: number) {
