@@ -2,7 +2,6 @@
 
 为个人跑团活动fork并部署，不承诺处理任何使用中遇到的问题。
 
-```html
 <!-- ALL-CONTRIBUTORS-BADGE:START - 请勿移除或修改此部分 -->
 [![所有贡献者](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
@@ -181,4 +180,5 @@ Keir - [@probabletrain](https://twitter.com/probabletrain) - probabletrain@gmail
 ## 许可证
 
 基于 LGPL-3.0 许可证分发。有关更多信息，请参阅 `COPYING` 和 `COPYING.LESSER` 文件。
+
 ```
