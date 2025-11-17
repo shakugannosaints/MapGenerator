@@ -110,7 +110,7 @@ class Main {
         };
 
         this.tensorField = new TensorFieldGUI(this.tensorFolder, this.dragController, true, noiseParamsPlaceholder);
-        this.mainGui = new MainGUI(this.roadsFolder, this.tensorField, () => this.tensorFolder.close());
+        this.mainGui = new MainGUI(this.roadsFolder, this.tensorField, () => this.tensorFolder.close(), this.dragController);
 
     this.optionsFolder.add(this.tensorField, 'drawCentre').name('绘制中心点');
     this.optionsFolder.add(this, 'highDPI').name('高DPI').onChange((high: boolean) => this.changeCanvasScale(high));
@@ -285,11 +285,16 @@ class Main {
     draw(): void {
         if (this.showTensorField()) {
             this.previousFrameDrawTensor = true;
+            // 张量场模式：启用拖拽（用于张量场编辑）
             this.dragController.setDragDisabled(false);
             this.tensorField.draw(this.tensorCanvas);
+            // 在张量场模式下也绘制城市边界
+            this.mainGui.drawCityBoundaryIfEnabled(this.tensorCanvas);
         } else {
-            // Disable field drag and drop
-            this.dragController.setDragDisabled(true);
+            // 地图模式：检查是否在编辑边界
+            const isBoundaryEditMode = this.mainGui.isBoundaryEditMode();
+            // 只有在不编辑边界时才禁用拖拽
+            this.dragController.setDragDisabled(!isBoundaryEditMode);
             
             if (this.previousFrameDrawTensor === true) {
                 this.previousFrameDrawTensor = false;

@@ -5,6 +5,7 @@ import Graph from '../impl/graph';
 import Vector from '../vector';
 import PolygonFinder from '../impl/polygon_finder';
 import {PolygonParams} from '../impl/polygon_finder';
+import {BoundaryChecker} from '../impl/streamlines';
 
 
 export interface BuildingModel {
@@ -86,6 +87,12 @@ export default class Buildings {
     private postGenerateCallback: () => any = () => {};
     private _models: BuildingModels = new BuildingModels([]);
     private _blocks: Vector[][] = [];
+    // Filtered lots after applying density and range
+    private _filteredLots: Vector[][] = [];
+
+    // Config
+    private _density: number = 1.0; // 0..1 fraction of lots kept
+    private _boundaryChecker: BoundaryChecker | null = null;
 
     private buildingParams: PolygonParams = {
         maxLength: 20,
@@ -103,6 +110,7 @@ export default class Buildings {
         folder.add(this.buildingParams, 'minArea').name('最小面积');
         folder.add(this.buildingParams, 'shrinkSpacing').name('收缩间距');
         folder.add(this.buildingParams, 'chanceNoDivide').name('不分割概率');
+        folder.add(this, 'density', 0, 1, 0.05).name('建筑密度');
         this.polygonFinder = new PolygonFinder([], this.buildingParams, this.tensorField);
     }
 
@@ -111,7 +119,8 @@ export default class Buildings {
     }
 
     get lots(): Vector[][] {
-        return this.polygonFinder.polygons.map(p => p.map(v => this.domainController.worldToScreen(v.clone())));
+        const lots = this._filteredLots.length > 0 ? this._filteredLots : this.polygonFinder.polygons;
+        return lots.map(p => p.map(v => this.domainController.worldToScreen(v.clone())));
     }
 
     /**
@@ -156,8 +165,33 @@ export default class Buildings {
         this.polygonFinder.findPolygons();
         await this.polygonFinder.shrink(animate);
         await this.polygonFinder.divide(animate);
+        
+        // Apply post-processing: boundary filter and density
+        const sourceLots = this.polygonFinder.polygons;
+        let filtered = sourceLots;
+        
+        // 使用边界检测器过滤
+        if (this._boundaryChecker) {
+            filtered = filtered.filter(poly => {
+                // Use polygon centroid
+                const cx = poly.reduce((acc, v) => acc + v.x, 0) / poly.length;
+                const cy = poly.reduce((acc, v) => acc + v.y, 0) / poly.length;
+                return this._boundaryChecker(new Vector(cx, cy));
+            });
+        }
+        
+        // 密度过滤
+        if (this._density < 1) {
+            const keep: Vector[][] = [];
+            for (const p of filtered) {
+                if (Math.random() <= Math.max(0, Math.min(1, this._density))) keep.push(p);
+            }
+            filtered = keep;
+        }
+        
+        this._filteredLots = filtered;
         this.redraw();
-        this._models = new BuildingModels(this.polygonFinder.polygons);
+        this._models = new BuildingModels(this._filteredLots);
 
         this.postGenerateCallback();
     }
@@ -168,5 +202,51 @@ export default class Buildings {
 
     setPostGenerateCallback(callback: () => any): void {
         this.postGenerateCallback = callback;
+    }
+
+    // External configuration setters
+    setBoundaryChecker(checker: BoundaryChecker | null): void {
+        this._boundaryChecker = checker;
+        // 重新计算过滤后的地块
+        this.refilterLots();
+    }
+
+    /**
+     * 重新应用边界和密度过滤
+     */
+    private refilterLots(): void {
+        const sourceLots = this.polygonFinder.polygons;
+        let filtered = sourceLots;
+        
+        // 使用边界检测器过滤
+        if (this._boundaryChecker) {
+            filtered = filtered.filter(poly => {
+                const cx = poly.reduce((acc, vv) => acc + vv.x, 0) / poly.length;
+                const cy = poly.reduce((acc, vv) => acc + vv.y, 0) / poly.length;
+                return this._boundaryChecker(new Vector(cx, cy));
+            });
+        }
+        
+        // 密度过滤
+        if (this._density < 1) {
+            const keep: Vector[][] = [];
+            for (const p of filtered) {
+                if (Math.random() <= Math.max(0, Math.min(1, this._density))) keep.push(p);
+            }
+            filtered = keep;
+        }
+        
+        this._filteredLots = filtered;
+        this._models = new BuildingModels(this._filteredLots);
+        this.redraw();
+    }
+
+    get density(): number {
+        return this._density;
+    }
+
+    set density(v: number) {
+        this._density = v;
+        this.refilterLots();
     }
 }

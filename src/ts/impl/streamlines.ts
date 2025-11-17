@@ -13,6 +13,9 @@ interface StreamlineIntegration {
     valid: boolean;
 }
 
+// 边界检测函数类型
+export type BoundaryChecker = (point: Vector) => boolean;
+
 export interface StreamlineParams {
     [key: string]: any;
     dsep: number;  // Streamline seed separating distance
@@ -38,6 +41,9 @@ export default class StreamlineGenerator {
     protected majorGrid: GridStorage;
     protected minorGrid: GridStorage;
     protected paramsSq: StreamlineParams;
+
+    // 可选的边界检测函数
+    protected boundaryChecker: BoundaryChecker | null = null;
 
     // How many samples to skip when checking streamline collision with itself
     protected nStreamlineStep: number;
@@ -87,6 +93,13 @@ export default class StreamlineGenerator {
         this.streamlinesMajor = [];
         this.streamlinesMinor = [];
         this.allStreamlines = [];
+    }
+
+    /**
+     * 设置边界检测函数
+     */
+    setBoundaryChecker(checker: BoundaryChecker | null): void {
+        this.boundaryChecker = checker;
     }
 
     /**
@@ -296,7 +309,11 @@ export default class StreamlineGenerator {
     }
 
     protected samplePoint(): Vector {
-        // TODO better seeding scheme
+        // 如果有边界检测器，在边界包围盒内采样
+        if (this.boundaryChecker) {
+            // 简单策略：在整个世界范围采样，依赖 isValidSample 过滤
+            // 更优化的方法是获取边界包围盒，但需要额外接口
+        }
         return new Vector(
             Math.random() * this.worldDimensions.x,
             Math.random() * this.worldDimensions.y)
@@ -335,6 +352,10 @@ export default class StreamlineGenerator {
         let gridValid = this.grid(major).isValidSample(point, dSq);
         if (bothGrids) {
             gridValid = gridValid && this.grid(!major).isValidSample(point, dSq);
+        }
+        // 检查是否在自定义边界内
+        if (this.boundaryChecker && !this.boundaryChecker(point)) {
+            return false;
         }
         return this.integrator.onLand(point) && gridValid;
     }

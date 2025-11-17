@@ -1,5 +1,6 @@
 import * as log from 'loglevel';
 import DomainController from './domain_controller';
+import DragController from './drag_controller';
 import TensorField from '../impl/tensor_field';
 import {RK4Integrator} from '../impl/integrator';
 import FieldIntegrator from '../impl/integrator';
@@ -15,9 +16,10 @@ import StreamlineGenerator from '../impl/streamlines';
 import WaterGenerator from '../impl/water_generator';
 import Style from './style';
 import {DefaultStyle, RoughStyle} from './style';
-import CanvasWrapper from './canvas_wrapper';
+import CanvasWrapper, {DefaultCanvasWrapper} from './canvas_wrapper';
 import Buildings, {BuildingModel} from './buildings';
 import PolygonUtil from '../impl/polygon_util';
+import CityBoundary from './city_boundary';
 
 /**
  * Handles Map folder, glues together impl
@@ -39,6 +41,9 @@ export default class MainGUI {
     private majorRoads: RoadGUI;
     private minorRoads: RoadGUI;
     private buildings: Buildings;
+    
+    // 城市边界
+    private cityBoundary: CityBoundary;
 
     // Params
     private coastlineParams: WaterParams;
@@ -59,7 +64,10 @@ export default class MainGUI {
 
     private redraw: boolean = true;
 
-    constructor(private guiFolder: dat.GUI, private tensorField: TensorField, private closeTensorFolder: () => void) {
+    constructor(private guiFolder: dat.GUI, 
+                private tensorField: TensorField, 
+                private closeTensorFolder: () => void,
+                private dragController: DragController) {
     guiFolder.add({'生成全部': () => this.generateEverything()}, '生成全部');
     // guiFolder.add(this, 'simpleBenchMark');
     const animateController = guiFolder.add(this, 'animate').name('动画开关');
@@ -103,6 +111,16 @@ export default class MainGUI {
         this.majorRoads = new RoadGUI(this.majorParams, integrator, this.guiFolder, closeTensorFolder, '主要道路', redraw, this.animate).initFolder();
         this.minorRoads = new RoadGUI(this.minorParams, integrator, this.guiFolder, closeTensorFolder, '次要道路', redraw, this.animate).initFolder();
         
+        // 城市边界 UI
+        this.cityBoundary = new CityBoundary(dragController, redraw);
+        const boundaryFolder = guiFolder.addFolder('城市边界');
+        boundaryFolder.add(this.cityBoundary, 'enabled').name('启用边界').onChange(() => this.updateBoundaryChecker());
+        boundaryFolder.add(this.cityBoundary, 'editMode').name('编辑模式');
+        boundaryFolder.add({重置边界: () => this.cityBoundary.reset()}, '重置边界');
+        
+        // 添加画布点击监听器用于编辑边界
+        this.setupBoundaryClickListener();
+        
         const parks = guiFolder.addFolder('公园');
         parks.add({生成: () => {
             this.buildings.reset();
@@ -123,6 +141,9 @@ export default class MainGUI {
             allStreamlines.push(...this.coastline.streamlinesWithSecondaryRoad);
             this.buildings.setAllStreamlines(allStreamlines);
         });
+
+        // 初始化边界检测器
+        this.updateBoundaryChecker();
 
         animateController.onChange((b: boolean) => {
             this.majorRoads.animate = b;
@@ -183,6 +204,39 @@ export default class MainGUI {
 
         this.minorRoads.setPostGenerateCallback(() => {
             this.addParks();
+        });
+    }
+
+    /**
+     * 更新所有组件的边界检测器
+     */
+    private updateBoundaryChecker(): void {
+        const checker = this.cityBoundary.enabled 
+            ? (point: Vector) => this.cityBoundary.contains(point)
+            : null;
+        
+        this.coastline.setBoundaryChecker(checker);
+        this.mainRoads.setBoundaryChecker(checker);
+        this.majorRoads.setBoundaryChecker(checker);
+        this.minorRoads.setBoundaryChecker(checker);
+        this.buildings.setBoundaryChecker(checker);
+    }
+
+    /**
+     * 设置画布点击监听器，用于在编辑模式下添加/删除边界顶点
+     */
+    private setupBoundaryClickListener(): void {
+        const canvas = document.getElementById('mapCanvas');
+        if (!canvas) return;
+        
+        canvas.addEventListener('click', (event: MouseEvent) => {
+            if (!this.cityBoundary.editMode) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            this.cityBoundary.addVertex(new Vector(x, y));
         });
     }
 
@@ -285,6 +339,76 @@ export default class MainGUI {
         style.coastlineRoads = this.coastline.roads;
         style.secondaryRiver = this.coastline.secondaryRiver;
         style.draw(customCanvas);
+        
+        // 绘制城市边界（在所有内容之上）
+        if (this.cityBoundary.enabled && !customCanvas) {
+            this.drawCityBoundary(style);
+        }
+    }
+
+    /**
+     * 绘制城市边界多边形（通用方法，支持任意canvas）
+     */
+    private drawCityBoundaryOnCanvas(ctx: CanvasRenderingContext2D): void {
+        const vertices = this.cityBoundary.verticesScreen;
+        
+        if (vertices.length < 3) return;
+        
+        ctx.save();
+        ctx.strokeStyle = this.cityBoundary.editMode ? '#ff0000' : '#00aaff';
+        ctx.lineWidth = this.cityBoundary.editMode ? 3 : 2;
+        ctx.setLineDash(this.cityBoundary.editMode ? [] : [10, 5]);
+        
+        ctx.beginPath();
+        ctx.moveTo(vertices[0].x, vertices[0].y);
+        for (let i = 1; i < vertices.length; i++) {
+            ctx.lineTo(vertices[i].x, vertices[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        
+        // 在编辑模式下绘制顶点
+        if (this.cityBoundary.editMode) {
+            ctx.fillStyle = '#ff0000';
+            for (const v of vertices) {
+                ctx.beginPath();
+                ctx.arc(v.x, v.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        ctx.restore();
+    }
+
+    /**
+     * 绘制城市边界多边形（在Style上）
+     */
+    private drawCityBoundary(style: Style): void {
+        // 使用原生canvas API绘制（需要访问DefaultStyle的canvas）
+        if (style instanceof DefaultStyle) {
+            const canvas = (style as any).canvas as DefaultCanvasWrapper;
+            const ctx = (canvas as any).ctx as CanvasRenderingContext2D;
+            this.drawCityBoundaryOnCanvas(ctx);
+        }
+    }
+
+    /**
+     * 公开方法：在任意canvas上绘制城市边界（如果启用）
+     */
+    drawCityBoundaryIfEnabled(canvas: CanvasWrapper): void {
+        if (!this.cityBoundary.enabled) return;
+        
+        if (canvas instanceof DefaultCanvasWrapper) {
+            const ctx = (canvas as any).ctx as CanvasRenderingContext2D;
+            this.drawCityBoundaryOnCanvas(ctx);
+        }
+    }
+
+    /**
+     * 检查是否处于边界编辑模式
+     */
+    isBoundaryEditMode(): boolean {
+        return this.cityBoundary.enabled && this.cityBoundary.editMode;
     }
 
     roadsEmpty(): boolean {

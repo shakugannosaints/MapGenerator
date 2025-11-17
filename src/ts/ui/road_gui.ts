@@ -3,7 +3,7 @@ import CanvasWrapper from './canvas_wrapper';
 import DomainController from './domain_controller';
 import Util from '../util';
 import FieldIntegrator from '../impl/integrator';
-import {StreamlineParams} from '../impl/streamlines';
+import {StreamlineParams, BoundaryChecker} from '../impl/streamlines';
 import StreamlineGenerator from '../impl/streamlines';
 import Vector from '../vector';
 
@@ -18,6 +18,7 @@ export default class RoadGUI {
     protected postGenerateCallback: () => any = () => {};
 
     private streamlinesInProgress: boolean = false;
+    protected boundaryChecker: BoundaryChecker | null = null;
 
     constructor(protected params: StreamlineParams,
                 protected integrator: FieldIntegrator,
@@ -92,6 +93,10 @@ export default class RoadGUI {
         this.streamlines.clearStreamlines();
     }
 
+    setBoundaryChecker(checker: BoundaryChecker | null): void {
+        this.boundaryChecker = checker;
+    }
+
     async generateRoads(animate=false): Promise<unknown> {
         this.preGenerateCallback();
 
@@ -100,6 +105,11 @@ export default class RoadGUI {
             this.integrator, this.domainController.origin,
             this.domainController.worldDimensions, Object.assign({},this.params));
         this.domainController.zoom = this.domainController.zoom * Util.DRAW_INFLATE_AMOUNT;
+
+        // 设置边界检测器
+        if (this.boundaryChecker) {
+            this.streamlines.setBoundaryChecker(this.boundaryChecker);
+        }
 
         for (const s of this.existingStreamlines) {
             this.streamlines.addExistingStreamlines(s.streamlines)   
