@@ -17,6 +17,7 @@
 // mainWidth?: number;
 // zoomBuildings?: boolean;
 // buildingModels?: boolean;
+// landUseColors?: object;    // Colors for different land use types
 // 
 // Scheme name startsWith 'Drawn' means scheme will use RoughJS canvas
 // // Scheme name startsWith 'Heightmap' draws heightmap
@@ -31,6 +32,13 @@
         "minorRoadColour": "#F8F8F8",
         "mainRoadOutline": "#282828",
         "mainRoadColour": "#FAFA7A",
+        "landUseColors": {
+            "residential": "rgb(255, 250, 205)",
+            "commercial": "rgb(255, 200, 200)",
+            "industrial": "rgb(210, 210, 240)",
+            "mixed_use": "rgb(255, 230, 200)",
+            "public": "rgb(200, 240, 200)"
+        }
     },
     "Apple": {
         "bgColour": "rgb(248,245,238)",
@@ -103,6 +111,13 @@
         "zoomBuildings": true,
         "buildingModels": true,
         "outlineSize": 2,
+        "landUseColors": {
+            "residential": "rgb(255, 250, 210)",
+            "commercial": "rgb(255, 210, 210)",
+            "industrial": "rgb(220, 220, 250)",
+            "mixed_use": "rgb(255, 235, 210)",
+            "public": "rgb(210, 245, 210)"
+        }
     },
     "GoogleNoZoom": {
         "bgColour": "rgb(236,236,236)",

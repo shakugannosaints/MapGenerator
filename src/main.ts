@@ -43,6 +43,7 @@ class Main {
     private zoomBuildings: boolean = false;  // Show buildings only when zoomed in?
     private buildingModels: boolean = false;  // Draw pseudo-3D buildings?
     private showFrame: boolean = false;
+    private enableLandUseColoring: boolean = false;  // 启用用地类型染色
 
     // Force redraw of roads when switching from tensor vis to map vis
     private previousFrameDrawTensor = true;
@@ -90,6 +91,16 @@ class Main {
             this.previousFrameDrawTensor = true;
             this._style.showBuildingModels = val;
         });
+        
+        this.styleFolder.add(this, 'enableLandUseColoring').name('用地类型染色').onChange((val: boolean) => {
+            // Force redraw
+            this.previousFrameDrawTensor = true;
+            this._style.enableLandUseColoring = val;
+            this.mainGui.buildings.enableLandUseColoring = val;
+        });
+        
+        // 用地类型详细配置
+        this.setupLandUseConfigUI();
         
         this.styleFolder.add(this, 'showFrame').name('显示边框').onChange((val: boolean) => {
             this.previousFrameDrawTensor = true;
@@ -197,6 +208,106 @@ class Main {
 
             this.modelGenerator.getSTL().then(blob => this.downloadFile('model.zip', blob));
         });
+    }
+
+    /**
+     * 设置用地类型详细配置UI
+     */
+    private setupLandUseConfigUI(): void {
+        const landUseFolder = this.styleFolder.addFolder('用地类型配置');
+        
+        // 全局参数
+        const globalFolder = landUseFolder.addFolder('全局参数');
+        globalFolder.add({randomness: 0.1}, 'randomness', 0, 1).step(0.01).name('随机性')
+            .onChange((val: number) => {
+                this.mainGui.buildings.updateGlobalRandomness(val);
+            });
+        
+        // 居住用地配置
+        this.setupLandUseTypeUI(landUseFolder, 'residential', '居住用地', {
+            enabled: true,
+            centerWeight: 0.3,
+            roadWeight: 0.2,
+            areaWeight: 0.3,
+            clusteringStrength: 0.5
+        });
+        
+        // 商业用地配置
+        this.setupLandUseTypeUI(landUseFolder, 'commercial', '商业用地', {
+            enabled: true,
+            centerWeight: 0.8,
+            roadWeight: 0.5,
+            areaWeight: 0.2,
+            clusteringStrength: 0.7
+        });
+        
+        // 工业用地配置
+        this.setupLandUseTypeUI(landUseFolder, 'industrial', '工业用地', {
+            enabled: true,
+            centerWeight: 0.1,
+            roadWeight: 0.3,
+            areaWeight: 0.5,
+            clusteringStrength: 0.8
+        });
+        
+        // 混合用地配置
+        this.setupLandUseTypeUI(landUseFolder, 'mixedUse', '混合用地', {
+            enabled: true,
+            centerWeight: 0.5,
+            roadWeight: 0.5,
+            areaWeight: 0.3,
+            clusteringStrength: 0.4
+        });
+        
+        // 公共用地配置
+        this.setupLandUseTypeUI(landUseFolder, 'public', '公共用地', {
+            enabled: true,
+            centerWeight: 0.6,
+            roadWeight: 0.4,
+            areaWeight: 0.4,
+            clusteringStrength: 0.3
+        });
+    }
+    
+    /**
+     * 为单个用地类型设置UI控件
+     */
+    private setupLandUseTypeUI(
+        parentFolder: dat.GUI,
+        type: 'residential' | 'commercial' | 'industrial' | 'mixedUse' | 'public',
+        displayName: string,
+        defaults: {enabled: boolean; centerWeight: number; roadWeight: number; areaWeight: number; clusteringStrength: number}
+    ): void {
+        const folder = parentFolder.addFolder(displayName);
+        
+        // 启用/禁用
+        folder.add(defaults, 'enabled').name('启用').onChange((val: boolean) => {
+            this.mainGui.buildings.updateLandUseTypeConfig(type, {enabled: val});
+        });
+        
+        // 中心权重
+        folder.add(defaults, 'centerWeight', 0, 1).step(0.01).name('中心权重')
+            .onChange((val: number) => {
+                this.mainGui.buildings.updateLandUseTypeConfig(type, {centerWeight: val});
+            });
+        
+        // 道路权重
+        folder.add(defaults, 'roadWeight', 0, 1).step(0.01).name('道路权重')
+            .onChange((val: number) => {
+                this.mainGui.buildings.updateLandUseTypeConfig(type, {roadWeight: val});
+            });
+        
+        // 面积权重
+        folder.add(defaults, 'areaWeight', 0, 1).step(0.01).name('面积权重')
+            .onChange((val: number) => {
+                this.mainGui.buildings.updateLandUseTypeConfig(type, {areaWeight: val});
+            });
+        
+        // 聚集强度
+        folder.add(defaults, 'clusteringStrength', 0, 1).step(0.01).name('聚集强度')
+            .onChange((val: number) => {
+                this.mainGui.buildings.updateLandUseTypeConfig(type, {clusteringStrength: val});
+            });
     }
 
     private downloadFile(filename: string, file: any): void {

@@ -40,7 +40,7 @@ export default class MainGUI {
     private mainRoads: RoadGUI;
     private majorRoads: RoadGUI;
     private minorRoads: RoadGUI;
-    private buildings: Buildings;
+    public buildings: Buildings;  // 改为 public 以便从 Main 访问
     
     // 城市边界
     private cityBoundary: CityBoundary;
@@ -140,6 +140,12 @@ export default class MainGUI {
             allStreamlines.push(...this.minorRoads.allStreamlines);
             allStreamlines.push(...this.coastline.streamlinesWithSecondaryRoad);
             this.buildings.setAllStreamlines(allStreamlines);
+            
+            // 设置道路数据用于用地分类
+            this.buildings.setRoadsForClassification(
+                this.mainRoads.allStreamlines,
+                this.majorRoads.allStreamlines
+            );
         });
 
         // 初始化边界检测器
@@ -326,7 +332,10 @@ export default class MainGUI {
         style.river = this.coastline.river;
         style.lots = this.buildings.lots;
 
-        if (style instanceof DefaultStyle && style.showBuildingModels || style instanceof RoughStyle) {
+        // 如果启用了3D建筑模型或用地染色，都需要设置 buildingModels
+        if ((style instanceof DefaultStyle && style.showBuildingModels) || 
+            style instanceof RoughStyle || 
+            style.enableLandUseColoring) {
             style.buildingModels = this.buildings.models;    
         }
 

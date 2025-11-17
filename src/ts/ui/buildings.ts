@@ -6,6 +6,7 @@ import Vector from '../vector';
 import PolygonFinder from '../impl/polygon_finder';
 import {PolygonParams} from '../impl/polygon_finder';
 import {BoundaryChecker} from '../impl/streamlines';
+import LandUseClassifier, {LandUseType, LandUseInfo, LandUseConfig} from '../impl/land_use_classifier';
 
 
 export interface BuildingModel {
@@ -14,6 +15,7 @@ export interface BuildingModel {
     lotScreen: Vector[]; // In screen space
     roof: Vector[]; // In screen space
     sides: Vector[][]; // In screen space
+    landUseType?: LandUseType; // 用地类型
 }
 
 /**
@@ -23,14 +25,16 @@ class BuildingModels {
     private domainController = DomainController.getInstance();
     private _buildingModels: BuildingModel[] = [];
 
-    constructor(lots: Vector[][]) {  // Lots in world space
-        for (const lot of lots) {
+    constructor(lots: Vector[][], landUseTypes?: LandUseType[]) {  // Lots in world space
+        for (let i = 0; i < lots.length; i++) {
+            const lot = lots[i];
             this._buildingModels.push({
                 height: Math.random() * 20 + 20,
                 lotWorld: lot,
                 lotScreen: [],
                 roof: [],
-                sides: []
+                sides: [],
+                landUseType: landUseTypes ? landUseTypes[i] : undefined
             });
         }
         this._buildingModels.sort((a, b) => a.height - b.height);
@@ -89,6 +93,13 @@ export default class Buildings {
     private _blocks: Vector[][] = [];
     // Filtered lots after applying density and range
     private _filteredLots: Vector[][] = [];
+    
+    // 用地分类相关
+    private _enableLandUseColoring: boolean = false;
+    private _landUseInfos: LandUseInfo[] = [];
+    private _mainRoads: Vector[][] = [];
+    private _majorRoads: Vector[][] = [];
+    private _landUseConfig: Partial<LandUseConfig> = {};  // 用户自定义配置
 
     // Config
     private _density: number = 1.0; // 0..1 fraction of lots kept
@@ -190,8 +201,19 @@ export default class Buildings {
         }
         
         this._filteredLots = filtered;
+        
+        // 应用用地分类
+        if (this._enableLandUseColoring && this._filteredLots.length > 0) {
+            this.classifyLandUse();
+        } else {
+            this._landUseInfos = [];
+        }
+        
         this.redraw();
-        this._models = new BuildingModels(this._filteredLots);
+        
+        // 创建建筑模型时传入用地类型
+        const landUseTypes = this._landUseInfos.map(info => info.type);
+        this._models = new BuildingModels(this._filteredLots, landUseTypes.length > 0 ? landUseTypes : undefined);
 
         this.postGenerateCallback();
     }
@@ -237,7 +259,151 @@ export default class Buildings {
         }
         
         this._filteredLots = filtered;
-        this._models = new BuildingModels(this._filteredLots);
+        
+        // 重新分类用地
+        if (this._enableLandUseColoring && this._filteredLots.length > 0) {
+            this.classifyLandUse();
+        }
+        
+        const landUseTypes = this._landUseInfos.map(info => info.type);
+        this._models = new BuildingModels(this._filteredLots, landUseTypes.length > 0 ? landUseTypes : undefined);
+        this.redraw();
+    }
+    
+    /**
+     * 对地块进行用地类型分类
+     */
+    private classifyLandUse(): void {
+        // 计算地图中心和半径
+        const allPoints: Vector[] = [];
+        for (const lot of this._filteredLots) {
+            allPoints.push(...lot);
+        }
+        
+        if (allPoints.length === 0) {
+            this._landUseInfos = [];
+            return;
+        }
+        
+        // 计算边界框
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const p of allPoints) {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+        }
+        
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        const mapCenter = new Vector(centerX, centerY);
+        const mapRadius = Math.max(maxX - minX, maxY - minY) / 2;
+        
+        // 创建分类器
+        const classifier = new LandUseClassifier(
+            mapCenter,
+            mapRadius,
+            this._mainRoads,
+            this._majorRoads,
+            this._landUseConfig
+        );
+        
+        // 分类
+        this._landUseInfos = classifier.classifyLots(this._filteredLots);
+    }
+    
+    /**
+     * 设置道路数据用于分类
+     */
+    setRoadsForClassification(mainRoads: Vector[][], majorRoads: Vector[][]): void {
+        this._mainRoads = mainRoads;
+        this._majorRoads = majorRoads;
+    }
+    
+    /**
+     * 获取用地信息
+     */
+    get landUseInfos(): LandUseInfo[] {
+        return this._landUseInfos;
+    }
+    
+    /**
+     * 获取用地类型配置
+     */
+    get landUseConfig(): Partial<LandUseConfig> {
+        return this._landUseConfig;
+    }
+    
+    /**
+     * 设置用地类型配置
+     */
+    set landUseConfig(value: Partial<LandUseConfig>) {
+        this._landUseConfig = value;
+        // 如果启用了用地染色，重新分类
+        if (this._enableLandUseColoring && this._filteredLots.length > 0) {
+            this.classifyLandUse();
+            this.redraw();
+        }
+    }
+    
+    /**
+     * 更新特定用地类型的配置
+     */
+    updateLandUseTypeConfig(
+        type: 'residential' | 'commercial' | 'industrial' | 'mixedUse' | 'public',
+        config: Partial<{enabled: boolean; centerWeight: number; roadWeight: number; areaWeight: number; clusteringStrength: number}>
+    ): void {
+        if (!this._landUseConfig[type]) {
+            this._landUseConfig[type] = {} as any;
+        }
+        Object.assign(this._landUseConfig[type], config);
+        
+        // 如果启用了用地染色，重新分类
+        if (this._enableLandUseColoring && this._filteredLots.length > 0) {
+            this.classifyLandUse();
+            this.redraw();
+        }
+    }
+    
+    /**
+     * 更新全局随机性参数
+     */
+    updateGlobalRandomness(value: number): void {
+        this._landUseConfig.globalRandomness = value;
+        
+        // 如果启用了用地染色，重新分类
+        if (this._enableLandUseColoring && this._filteredLots.length > 0) {
+            this.classifyLandUse();
+            this.redraw();
+        }
+    }
+    
+    /**
+     * 启用/禁用用地染色
+     */
+    get enableLandUseColoring(): boolean {
+        return this._enableLandUseColoring;
+    }
+    
+    set enableLandUseColoring(value: boolean) {
+        console.log('🎨 用地类型染色开关:', value);
+        this._enableLandUseColoring = value;
+        // 重新分类或清除
+        if (value && this._filteredLots.length > 0) {
+            console.log('🔄 开始对', this._filteredLots.length, '个地块进行分类...');
+            this.classifyLandUse();
+            const landUseTypes = this._landUseInfos.map(info => info.type);
+            this._models = new BuildingModels(this._filteredLots, landUseTypes);
+            console.log('✅ 用地分类完成，已更新建筑模型');
+        } else {
+            this._landUseInfos = [];
+            this._models = new BuildingModels(this._filteredLots);
+            if (!value) {
+                console.log('❌ 用地类型染色已禁用');
+            } else {
+                console.log('⚠️ 无法启用用地染色：没有建筑地块（请先生成建筑）');
+            }
+        }
         this.redraw();
     }
 

@@ -2,6 +2,22 @@
 
 为个人跑团活动fork并部署，不承诺处理任何使用中遇到的问题。
 
+以下为该fork版本中实现的新功能与特性：
+
+## 建筑密度
+
+在地图-建筑菜单中可控制。
+
+## 城市生成范围
+
+在地图-城市边界菜单中可开启与编辑。
+
+## 自动染色
+
+在样式-用地类型染色中可开启与编辑参数。
+
+以下为原项目readme.md全文翻译。
+
 <!-- ALL-CONTRIBUTORS-BADGE:START - 请勿移除或修改此部分 -->
 [![所有贡献者](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->

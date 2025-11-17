@@ -33,6 +33,13 @@ export interface ColourScheme {
     buildingModels?: boolean;
     frameColour?: string;
     frameTextColour?: string;
+    landUseColors?: {
+        residential?: string;
+        commercial?: string;
+        industrial?: string;
+        mixed_use?: string;
+        public?: string;
+    };
 }
 
 /**
@@ -61,6 +68,9 @@ export default abstract class Style {
     public mainRoads: Vector[][] = [];
     public coastlineRoads: Vector[][] = [];
     public showFrame: boolean;
+    
+    // 用地染色
+    public enableLandUseColoring: boolean = false;
 
     constructor(protected dragController: DragController, protected colourScheme: ColourScheme) {
         if (!colourScheme.bgColour) log.error("ColourScheme Error - bgColour not defined");
@@ -86,6 +96,16 @@ export default abstract class Style {
         if (!colourScheme.mainWidth) colourScheme.mainWidth = 5;
         if (!colourScheme.frameColour) colourScheme.frameColour = colourScheme.bgColour;
         if (!colourScheme.frameTextColour) colourScheme.frameTextColour = colourScheme.minorRoadOutline;
+
+        // 用地颜色默认值
+        if (!colourScheme.landUseColors) {
+            colourScheme.landUseColors = {};
+        }
+        if (!colourScheme.landUseColors.residential) colourScheme.landUseColors.residential = 'rgb(255, 245, 200)'; // 淡黄色
+        if (!colourScheme.landUseColors.commercial) colourScheme.landUseColors.commercial = 'rgb(255, 200, 200)'; // 淡红色
+        if (!colourScheme.landUseColors.industrial) colourScheme.landUseColors.industrial = 'rgb(220, 220, 255)'; // 淡紫色
+        if (!colourScheme.landUseColors.mixed_use) colourScheme.landUseColors.mixed_use = 'rgb(255, 220, 200)'; // 橙色
+        if (!colourScheme.landUseColors.public) colourScheme.landUseColors.public = 'rgb(200, 255, 200)'; // 淡绿色
 
         if (!colourScheme.buildingSideColour) {
             const parsedRgb = Util.parseCSSColor(colourScheme.buildingColour).map(v => Math.max(0, v - 40));
@@ -119,6 +139,25 @@ export default abstract class Style {
 
     public set needsUpdate(n: boolean) {
         this.canvas.needsUpdate = n;
+    }
+    
+    /**
+     * 根据用地类型获取颜色
+     */
+    protected getLandUseColor(landUseType: string): string {
+        if (!this.colourScheme.landUseColors) {
+            return this.colourScheme.buildingColour;
+        }
+        
+        const colorMap: Record<string, string | undefined> = {
+            'residential': this.colourScheme.landUseColors.residential,
+            'commercial': this.colourScheme.landUseColors.commercial,
+            'industrial': this.colourScheme.landUseColors.industrial,
+            'mixed_use': this.colourScheme.landUseColors.mixed_use,
+            'public': this.colourScheme.landUseColors.public,
+        };
+        
+        return colorMap[landUseType] || this.colourScheme.buildingColour;
     }
 }
 
@@ -211,13 +250,36 @@ export class DefaultStyle extends Style {
         } else {
             // Buildings
             if (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2) {
-                canvas.setFillStyle(this.colourScheme.buildingColour);
-                canvas.setStrokeStyle(this.colourScheme.buildingStroke);
-                for (const b of this.lots) canvas.drawPolygon(b);
+                // 根据用地类型染色
+                if (this.enableLandUseColoring && this.buildingModels.length > 0) {
+                    console.log('🖌️ 使用用地类型染色绘制', this.buildingModels.length, '个建筑');
+                    let coloredCount = 0;
+                    for (const b of this.buildingModels) {
+                        if (b.landUseType) {
+                            canvas.setFillStyle(this.getLandUseColor(b.landUseType));
+                            canvas.setStrokeStyle(this.colourScheme.buildingStroke);
+                            coloredCount++;
+                        } else {
+                            canvas.setFillStyle(this.colourScheme.buildingColour);
+                            canvas.setStrokeStyle(this.colourScheme.buildingStroke);
+                        }
+                        canvas.drawPolygon(b.lotScreen);
+                    }
+                    console.log('✅ 已染色', coloredCount, '个建筑');
+                } else {
+                    // 默认染色
+                    if (this.enableLandUseColoring) {
+                        console.log('⚠️ 用地染色已启用但无建筑模型数据');
+                    }
+                    canvas.setFillStyle(this.colourScheme.buildingColour);
+                    canvas.setStrokeStyle(this.colourScheme.buildingStroke);
+                    for (const b of this.lots) canvas.drawPolygon(b);
+                }
             }
 
             // Pseudo-3D
             if (this.colourScheme.buildingModels && (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2.5)) {
+                // 绘制建筑侧面
                 canvas.setFillStyle(this.colourScheme.buildingSideColour);
                 canvas.setStrokeStyle(this.colourScheme.buildingSideColour);
 
@@ -226,9 +288,23 @@ export class DefaultStyle extends Style {
                 for (const b of this.buildingModels) {
                     for (const s of b.sides) canvas.drawPolygon(s);
                 }
-                canvas.setFillStyle(this.colourScheme.buildingColour);
-                canvas.setStrokeStyle(this.colourScheme.buildingStroke);
-                for (const b of this.buildingModels) canvas.drawPolygon(b.roof);
+                
+                // 绘制建筑屋顶 - 根据用地类型染色
+                if (this.enableLandUseColoring) {
+                    for (const b of this.buildingModels) {
+                        if (b.landUseType) {
+                            canvas.setFillStyle(this.getLandUseColor(b.landUseType));
+                        } else {
+                            canvas.setFillStyle(this.colourScheme.buildingColour);
+                        }
+                        canvas.setStrokeStyle(this.colourScheme.buildingStroke);
+                        canvas.drawPolygon(b.roof);
+                    }
+                } else {
+                    canvas.setFillStyle(this.colourScheme.buildingColour);
+                    canvas.setStrokeStyle(this.colourScheme.buildingStroke);
+                    for (const b of this.buildingModels) canvas.drawPolygon(b.roof);
+                }
             }
         }
 
@@ -336,14 +412,28 @@ export class RoughStyle extends Style {
         if (!this.dragging) {
             // Lots
             if (!this.colourScheme.zoomBuildings || this.domainController.zoom >= 2) {
-                // Lots
-                canvas.setOptions({
-                    roughness: 1.2,
-                    stroke: this.colourScheme.buildingStroke,
-                    strokeWidth: 1,
-                    fill: '',
-                });
-                for (const b of this.lots) canvas.drawPolygon(b);
+                // 根据用地类型染色
+                if (this.enableLandUseColoring && this.buildingModels.length > 0) {
+                    for (const b of this.buildingModels) {
+                        const fillColor = b.landUseType ? this.getLandUseColor(b.landUseType) : '';
+                        canvas.setOptions({
+                            roughness: 1.2,
+                            stroke: this.colourScheme.buildingStroke,
+                            strokeWidth: 1,
+                            fill: fillColor,
+                        });
+                        canvas.drawPolygon(b.lotScreen);
+                    }
+                } else {
+                    // 默认染色
+                    canvas.setOptions({
+                        roughness: 1.2,
+                        stroke: this.colourScheme.buildingStroke,
+                        strokeWidth: 1,
+                        fill: '',
+                    });
+                    for (const b of this.lots) canvas.drawPolygon(b);
+                }
             }
 
             // Pseudo-3D
@@ -368,14 +458,27 @@ export class RoughStyle extends Style {
                 allSidesDistances.sort((a, b) => b[0] - a[0]);
                 for (const p of allSidesDistances) canvas.drawPolygon(p[1]);
 
-                canvas.setOptions({
-                    roughness: 1.2,
-                    stroke: this.colourScheme.buildingStroke,
-                    strokeWidth: 1,
-                    fill: this.colourScheme.buildingColour,
-                });
-
-                for (const b of this.buildingModels) canvas.drawPolygon(b.roof);
+                // 绘制屋顶 - 根据用地类型染色
+                if (this.enableLandUseColoring) {
+                    for (const b of this.buildingModels) {
+                        const fillColor = b.landUseType ? this.getLandUseColor(b.landUseType) : this.colourScheme.buildingColour;
+                        canvas.setOptions({
+                            roughness: 1.2,
+                            stroke: this.colourScheme.buildingStroke,
+                            strokeWidth: 1,
+                            fill: fillColor,
+                        });
+                        canvas.drawPolygon(b.roof);
+                    }
+                } else {
+                    canvas.setOptions({
+                        roughness: 1.2,
+                        stroke: this.colourScheme.buildingStroke,
+                        strokeWidth: 1,
+                        fill: this.colourScheme.buildingColour,
+                    });
+                    for (const b of this.buildingModels) canvas.drawPolygon(b.roof);
+                }
             }
         }
     }
