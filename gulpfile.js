@@ -24,6 +24,7 @@ for (var i = 0; i < globFiles.length; i++) {
     files.push(globFiles[i]);
 }
 
+// Watch (development) bundle with watchify
 var watchedBrowserify = watchify(browserify({
     basedir: '.',
     debug: true,
@@ -74,6 +75,25 @@ function bundle() {
         .pipe(gulp.dest('dist'))
         .pipe(notify("Done"));
 }
+
+// One-off build task for CI (no watchify listeners)
+gulp.task('build', gulp.series(
+    gulp.parallel('copy-html'),
+    'apply-babelify-patch',
+    function buildBundle() {
+        return browserify({
+            basedir: '.',
+            debug: false,
+            entries: files,
+        })
+            .plugin(tsify)
+            .transform('babelify', babelconfig).on('error', fancy_log)
+            .bundle()
+            .on('error', fancy_log)
+            .pipe(source('bundle.js'))
+            .pipe(gulp.dest('dist'));
+    }
+));
 
 gulp.task('default', gulp.series(
     gulp.parallel('copy-html'),

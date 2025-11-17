@@ -1,5 +1,3 @@
-# 这是一个该项目的UI中文化版本
-
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
@@ -92,6 +90,32 @@ npm install
 gulp
 ```
 4. Open `dist/index.html` in a web browser, refresh the page whenever the project is rebuilt.
+
+## GitHub Pages 部署
+
+本项目是纯前端静态生成（通过 Gulp + Browserify 将所有 `src/**/*.ts` 打包到 `dist/bundle.js`，并复制 `src/html/index.html` 与 `style.css`），因此可以直接使用 GitHub Pages 部署。
+
+### 自动化部署（GitHub Actions）
+已包含一个工作流文件：`.github/workflows/deploy.yml`，它会在推送到 `master` 分支时：
+
+1. 安装依赖 (`npm ci`)
+2. 执行构建 (`npm run build` 生成 `dist/` 目录)
+3. 通过官方 Pages Action 上传并发布 `dist` 目录为站点内容
+
+部署完成后，可在仓库的 Settings -> Pages 中查看站点 URL。
+
+### 手动部署
+如果想手动部署，可在本地执行：
+```bash
+npm install
+npm run build
+```
+然后将 `dist` 目录的内容推送到一个名为 `gh-pages` 的分支根目录，或复制到仓库根下的 `docs/` 目录并在 Settings 中选择 `docs/` 作为 Pages 来源。
+
+### 注意事项
+* 如果新增或修改了 TS/HTML/CSS 文件，重新运行 `npm run build` 即可。
+* 工作流使用 `npm ci`，请勿手动修改 `node_modules` 后提交；依赖变更请更新 `package.json` 并提交。
+* 构建过程中会执行 gulp 里的 `apply-babelify-patch` 以兼容某些依赖的 browserify 转换。
 
 
 
